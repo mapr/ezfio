@@ -312,21 +312,21 @@ def SetupFiles():
 
     # Files we're going to generate, encode some system info in the names
     # If the output files already exist, erase them
-    testcsv = details + "/ezfio_tests_"+suffix+".csv"
+    testcsv = details + "/ezfio_tests_"+str(model)+suffix+".csv"
     if os.path.exists(testcsv):
         os.unlink(testcsv)
     CSVInfoHeader(testcsv)
     AppendFile("Type,Write %,Block Size,Threads,Queue Depth/Thread,IOPS," +
                "Bandwidth (MB/s),Read Latency (us),Write Latency (us)",
                testcsv)
-    timeseriescsv = details + "/ezfio_timeseries_"+suffix+".csv"
+    timeseriescsv = details + "/ezfio_timeseries_"+str(model)+suffix+".csv"
     if os.path.exists(timeseriescsv):
         os.unlink(timeseriescsv)
     CSVInfoHeader(timeseriescsv)
     AppendFile("IOPS", timeseriescsv) # Add IOPS header
 
     # Exceedance charts for newer FIO versions
-    exceedancecsv = details + "/ezfio_exceedance_"+suffix+".csv"
+    exceedancecsv = details + "/ezfio_exceedance_"+str(model)+suffix+".csv"
     if os.path.exists(exceedancecsv):
         os.unlink(exceedancecsv)
     CSVInfoHeader(exceedancecsv)
@@ -383,7 +383,7 @@ def RandomConditioning():
     """Randomly write entire device for the full capacity"""
     # Note that we can't use regular test runner because this test needs
     # to run for a specified # of bytes, not a specified # of seconds.
-    cmdline = [fio, "--name=RandCond", "--readwrite=randwrite", "--bs=4k",
+    cmdline = [fio, "--name=RandCond", "--readwrite=randwrite", "--bs=8k",
                "--invalidate=1", "--end_fsync=0", "--group_reporting",
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
@@ -566,7 +566,8 @@ def DefineTests():
     """Generate the work list for the main worker into OC."""
     global oc
     # What we're shmoo-ing across
-    bslist = (512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072)
+    #bslist = (512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072)
+    bslist = (1024,2048, 4096, 8192, 16384, 32768)
     qdlist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
     threadslist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
     shorttime = 120 # Runtime of point tests
@@ -666,37 +667,37 @@ def DefineTests():
 
     AddTest('Random Preconditioning', 'Preparation', '', '', '', '', '', '',
             '', lambda o: {} ) # Only for display on-screen
-    AddTest('Random Preconditioning', 'Rand Pass 1', '100', '4096', '1',
+    AddTest('Random Preconditioning', 'Rand Pass 1', '100', '8192', '1',
             '256', False, '', 'Random Preconditioning',
             lambda o: {RandomConditioning()} )
-    AddTest('Random Preconditioning', 'Rand Pass 2', '100', '4096', '1',
+    AddTest('Random Preconditioning', 'Rand Pass 2', '100', '8192', '1',
             '256', False, '', 'Random Preconditioning',
             lambda o: {RandomConditioning()} )
 
-    testname = "Sustained 4KB Random Read Tests by Number of Threads"
+    testname = "Sustained 8KB Random Read Tests by Number of Threads"
     seqrand = "Rand"
     wmix=0
-    bs=4096
+    bs=8192
     runtime=shorttime
     iops_log=False
     iodepth=1
     AddTestThreadsShmoo()
 
-    testname = "Sustained 4KB Random mixed 30% Write Tests by Threads"
+    testname = "Sustained 8KB Random mixed 30% Write Tests by Threads"
     seqrand = "Rand"
     wmix=30
-    bs=4096
+    bs=8192
     runtime=shorttime
     iops_log=False
     iodepth=1
     AddTestThreadsShmoo()
 
-    testname = "Sustained Perf Stability Test - 4KB Random 30% Write"
+    testname = "Sustained Perf Stability Test - 8KB Random 30% Write"
     AddTest(testname, 'Preparation', '', '', '', '', '', '', '',
             lambda o: {AppendFile(o['name'], testcsv)} )
     seqrand = "Rand"
     wmix=30
-    bs=4096
+    bs=8192
     runtime=longtime
     iops_log=True
     iodepth=1
@@ -704,10 +705,10 @@ def DefineTests():
     DoAddTest(testname, seqrand, wmix, bs, threads, iodepth, testname,
               iops_log, runtime)
 
-    testname = "Sustained 4KB Random Write Tests by Number of Threads"
+    testname = "Sustained 8KB Random Write Tests by Number of Threads"
     seqrand = "Rand"
     wmix=100
-    bs=4096
+    bs=8192
     runtime=shorttime
     iops_log=False
     iodepth=1
@@ -945,8 +946,8 @@ VNEBUEsFBgAAAAABAAEAWgAAAFQAAAAAAA==
         """
         files = []
         for qd in [ 1, 4, 16, 32 ]:
-            r = open( TestName("Rand", 30, 4096, qd, 1) + ".exc.read.csv" )
-            w = open( TestName("Rand", 30, 4096, qd, 1) + ".exc.write.csv" )
+            r = open( TestName("Rand", 30, 8192, qd, 1) + ".exc.read.csv" )
+            w = open( TestName("Rand", 30, 8192, qd, 1) + ".exc.write.csv" )
             files.append( [ r, w ] )
         while True:
             all_empty = True
