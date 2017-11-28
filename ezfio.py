@@ -568,8 +568,10 @@ def DefineTests():
     # What we're shmoo-ing across
     #bslist = (512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072)
     bslist = (1024,2048, 4096, 8192, 16384, 32768)
-    qdlist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
-    threadslist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+    #qdlist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+    qdlist = (8, 16, 32, 64, 128, 256)
+    #threadslist = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+    threadslist = (1,2,4)
     shorttime = 120 # Runtime of point tests
     longtime = 1200 # Runtime of long-running tests
 
