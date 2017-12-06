@@ -28,6 +28,7 @@
 # and re-run the script.
 
 import argparse
+import base64
 import datetime
 import json
 import os
