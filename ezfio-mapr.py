@@ -19,6 +19,11 @@
 # ------------------------------------------------------------------------
 #
 # Usage:   ./ezfio.py -d </dev/node> [-u <100..1>]
+#           Options:
+#               -u <100..1> utilization of disk to be used
+#               -s skip conditioning of disk, Results are not valid
+#               -e Estimate time for the tests. Runs Sequential and Random
+#                   preconditioning for 1% of the disk and reports time
 # Example: ./ezfio.py -d /dev/nvme0n1 -u 100
 # 
 # This script requires root privileges so must be run as "root" or
@@ -38,6 +43,8 @@ import sys
 import threading
 import time
 import zipfile
+
+def prRed(prt): print("\033[91m {}\033[00m" .format(prt))
 
 def AppendFile(text, filename):
     """Equivalent to >> in BASH, append a line to a text file."""
@@ -118,7 +125,7 @@ def CheckAIOLimits():
 
 def ParseArgs():
     """Parse command line options into globals."""
-    global physDrive, utilization, outputDest, yes
+    global physDrive, utilization, outputDest, yes, skipCond, estimate
     parser = argparse.ArgumentParser(
                  formatter_class=argparse.RawDescriptionHelpFormatter,
     description="A tool to easily run FIO to benchmark sustained " \
@@ -136,6 +143,12 @@ WARNING: All data on the target device will be DESTROYED by this test.""")
     parser.add_argument("--utilization", "-u", dest="utilization",
         help="Amount of drive to test (in percent), 1...100", default="100",
         type=int, required=False)
+    parser.add_argument("--skip", "-s", dest="skip", action='store_true',
+        help="Skip disk preconditioning step; Results cannot be trusted",
+        required=False)
+    parser.add_argument("--estimate", "-e", dest="estimate", action='store_true',
+        help="Run test to estimate time for the full run",
+        required=False)
     parser.add_argument("--output", "-o", dest="outputDest",
         help="Location where results should be saved", required=False)
     parser.add_argument("--yes", dest="yes", action='store_true',
@@ -146,7 +159,16 @@ WARNING: All data on the target device will be DESTROYED by this test.""")
     physDrive = args.physDrive
     utilization = args.utilization
     outputDest = args.outputDest
+    estimate=args.estimate
+    skipCond=args.skip
     yes = args.yes
+
+    if estimate == True:
+        utilization = 1 # overwrite utilization to 1% 
+
+    if skipCond == True:
+        prRed("WARNING: Results without pre conditioning a SSD will not be accurate")
+
     if (utilization < 1) or (utilization > 100):
         print "ERROR:  Utilization must be between 1...100"
         parser.print_help()
@@ -348,11 +370,15 @@ def SequentialConditioning():
                "--ioengine=libaio", "--iodepth=64", "--direct=1", 
                "--filename=" + physDrive, "--size=" + str(testcapacity) + "G",
                "--thread"]
+    starttime = datetime.datetime.now()
     code, out, err = Run(cmdline)
+    delta = datetime.datetime.now() - starttime
+    dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
+            (delta.seconds%3600)/60, delta.seconds % 60)
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
-        return "DONE", "DONE", "DONE"
+        return "DONE", "DONE", dstr
 
 def RandomConditioning():
     """Randomly write entire device for the full capacity"""
@@ -363,11 +389,15 @@ def RandomConditioning():
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
                "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread"]
+    starttime = datetime.datetime.now()
     code, out, err = Run(cmdline)
+    delta = datetime.datetime.now() - starttime
+    dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
+            (delta.seconds%3600)/60, delta.seconds % 60)
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
-        return "DONE", "DONE", "DONE"
+        return "DONE", "DONE", dstr
 
 def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
     """Runs the specified test, generates output CSV lines."""
@@ -487,6 +517,7 @@ def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
 
     return iops, mbps, lat
 
+
 def DefineTests():
     """Generate the work list for the main worker into OC."""
     global oc
@@ -549,14 +580,38 @@ def DefineTests():
             DoAddTest(testname, seqrand, wmix, bs, threads, iodepth, desc,
                       iops_log, runtime)
 
-    AddTest('Sequential Preconditioning', 'Preparation', '', '', '', '', '',
-            '', '', lambda o: {} ) # Only for display on-screen
-    AddTest('Sequential Preconditioning', 'Seq Pass 1', '100', '131072', '1',
-            '256', False, '', 'Sequential Preconditioning Pass 1',
-            lambda o: {SequentialConditioning()} )
-    AddTest('Sequential Preconditioning', 'Seq Pass 2', '100', '131072', '1',
-            '256', False, '', 'Sequential Preconditioning Pass 2',
-            lambda o: {SequentialConditioning()} )
+    def EstimateTestTime():
+        if estimate == False:
+            return
+
+        if (sys.stdout.isatty()):
+            print "Estimating test time"
+            print "\r",
+
+        AddTest('Sequential Preconditioning', 'Preparation', '', '', '', '', '',
+                '', '', lambda o: {} ) # Only for display on-screen
+        AddTest('Sequential Preconditioning', 'Seq Pass 1', '100', '131072', '1',
+                '256', False, '', 'Sequential Preconditioning Pass 1',
+                lambda o: {SequentialConditioning()} )
+        AddTest('Random Preconditioning', 'Preparation', '', '', '', '', '', '',
+                '', lambda o: {} ) # Only for display on-screen
+        AddTest('Random Preconditioning', 'Rand Pass 1', '100', '8192', '16',
+                '256', False, '', 'Random Preconditioning',
+                lambda o: {RandomConditioning()} )
+        RunAllTests()
+        sys.exit(0)
+
+
+    EstimateTestTime()
+    if skipCond == False:
+        AddTest('Sequential Preconditioning', 'Preparation', '', '', '', '', '',
+                '', '', lambda o: {} ) # Only for display on-screen
+        AddTest('Sequential Preconditioning', 'Seq Pass 1', '100', '131072', '1',
+                '256', False, '', 'Sequential Preconditioning Pass 1',
+                lambda o: {SequentialConditioning()} )
+        AddTest('Sequential Preconditioning', 'Seq Pass 2', '100', '131072', '1',
+                '256', False, '', 'Sequential Preconditioning Pass 2',
+                lambda o: {SequentialConditioning()} )
 
     testname = "Sustained Multi-Threaded Sequential Read Tests by Block Size"
     seqrand = "Seq"
@@ -585,14 +640,15 @@ def DefineTests():
     iodepth=16
     AddTestBSShmoo()
 
-    AddTest('Random Preconditioning', 'Preparation', '', '', '', '', '', '',
-            '', lambda o: {} ) # Only for display on-screen
-    AddTest('Random Preconditioning', 'Rand Pass 1', '100', '8192', '16',
-            '256', False, '', 'Random Preconditioning',
-            lambda o: {RandomConditioning()} )
-    AddTest('Random Preconditioning', 'Rand Pass 2', '100', '8192', '16',
-            '256', False, '', 'Random Preconditioning',
-            lambda o: {RandomConditioning()} )
+    if skipCond == False:
+        AddTest('Random Preconditioning', 'Preparation', '', '', '', '', '', '',
+                '', lambda o: {} ) # Only for display on-screen
+        AddTest('Random Preconditioning', 'Rand Pass 1', '100', '8192', '16',
+                '256', False, '', 'Random Preconditioning',
+                lambda o: {RandomConditioning()} )
+        AddTest('Random Preconditioning', 'Rand Pass 2', '100', '8192', '16',
+                '256', False, '', 'Random Preconditioning',
+                lambda o: {RandomConditioning()} )
 
     testname = "Sustained 8KB Random Read Tests by Number of Threads"
     seqrand = "Rand"
@@ -883,6 +939,8 @@ fioOutputFormat = "json" # Can we make exceedance charts using JSON+ output?
 physDrive = ""    # Device path to test
 utilization = ""  # Device utilization % 1..100
 yes = False       # Skip user verification
+skipCond = False  # Skip disk conditioning before tests
+estimate = False  # Estimate time for test completion by running cond for 1% of disk
 
 cpu = ""         # CPU model
 cpuCores = ""    # # of cores (including virtual)
