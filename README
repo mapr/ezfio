@@ -30,3 +30,9 @@ FIO is required to perform the actual IO tests.  Please ensure the latest
 version is installed, either from your operating system's repository or
 sources available at https://github.com/axboe/fio or precompiled for
 Windows at http://www.bluestop.org/fio/
+
+-----------------------------------------------------------------------
+Mitchelle.
+Tests have been trimmed to a subset of tuning parameters based on MapR
+workloads. Please use the help option for more details on how to run the
+script
