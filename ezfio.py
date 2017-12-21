@@ -136,10 +136,13 @@ Requirements:\n
 * No filesytems or data on target device
 * FIO IO tester (available https://github.com/axboe/fio)
 * sdparm to identify the NVME device and serial number
+* blkdev is used to get the block size and compute capacity
+* Eg: ./ezfio.py -d <disk>
+* For other optional command line arguments see ./ezfio.py -h
 
 WARNING: All data on the target device will be DESTROYED by this test.""")
     parser.add_argument("--drive", "-d", dest = "physDrive",
-        help="Device to test (ex: /dev/nvme0n1)", required=True)
+        help="Device to test [REQD] (ex: /dev/nvme0n1)", required=True)
     parser.add_argument("--utilization", "-u", dest="utilization",
         help="Amount of drive to test (in percent), 1...100", default="100",
         type=int, required=False)
@@ -257,6 +260,8 @@ def CollectDriveInfo():
         physDriveGB = (long(physDriveBytes))/(1000 * 1000 * 1000)
         physDriveGiB = (long(physDriveBytes))/(1024 * 1024 * 1024)
         testcapacity = (physDriveGiB * utilization) / 100
+        if testcapacity == 0:
+            raise Exception("Drive test capacity too small " + testcapacity)
     except:
         print "ERROR: Can't get '" + physDrive + "' size. ",
         print "Incorrect device name?"
