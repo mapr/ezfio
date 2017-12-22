@@ -136,7 +136,7 @@ Requirements:\n
 * No filesytems or data on target device
 * FIO IO tester (available https://github.com/axboe/fio)
 * sdparm to identify the NVME device and serial number
-* blkdev is used to get the block size and compute capacity
+* blockdev is used to get the block size and compute capacity
 * Eg: ./ezfio.py -d <disk>
 * For other optional command line arguments see ./ezfio.py -h
 
@@ -371,10 +371,13 @@ def SequentialConditioning():
     """Sequentially fill the complete capacity of the drive once."""
     # Note that we can't use regular test runner because this test needs
     # to run for a specified # of bytes, not a specified # of seconds.
+    testfile = TestName("cond", "", "", "", "1")
     cmdline = [fio, "--name=SeqCond", "--readwrite=write", "--bs=128k", 
                "--ioengine=libaio", "--iodepth=64", "--direct=1", 
                "--filename=" + physDrive, "--size=" + str(testcapacity) + "G",
                "--thread"]
+    AppendFile("[TEST-FIO_CMD]", testfile)
+    AppendFile(" ".join(cmdline), testfile)
     starttime = datetime.datetime.now()
     code, out, err = Run(cmdline)
     delta = datetime.datetime.now() - starttime
@@ -383,17 +386,24 @@ def SequentialConditioning():
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
+        AppendFile("[STDOUT]", testfile)
+        AppendFile(out, testfile)
+        AppendFile("[STDERR]", testfile)
+        AppendFile(err, testfile)
         return "DONE", "DONE", dstr
 
 def RandomConditioning():
     """Randomly write entire device for the full capacity"""
     # Note that we can't use regular test runner because this test needs
     # to run for a specified # of bytes, not a specified # of seconds.
+    testfile = TestName("cond", "", "", "", "1")
     cmdline = [fio, "--name=RandCond", "--readwrite=randwrite", "--bs=8k",
                "--invalidate=1", "--end_fsync=0", "--group_reporting",
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
                "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread"]
+    AppendFile("[TEST-FIO_CMD]", testfile)
+    AppendFile(" ".join(cmdline), testfile)
     starttime = datetime.datetime.now()
     code, out, err = Run(cmdline)
     delta = datetime.datetime.now() - starttime
@@ -402,6 +412,10 @@ def RandomConditioning():
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
+        AppendFile("[STDOUT]", testfile)
+        AppendFile(out, testfile)
+        AppendFile("[STDERR]", testfile)
+        AppendFile(err, testfile)
         return "DONE", "DONE", dstr
 
 def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
@@ -590,20 +604,28 @@ def DefineTests():
             return
 
         if (sys.stdout.isatty()):
-            print "Estimating test time"
+            print "Estimating test time sequential pre-conditioning (1% of disk capacity)"
             print "\r",
 
-        AddTest('Sequential Preconditioning', 'Preparation', '', '', '', '', '',
-                '', '', lambda o: {} ) # Only for display on-screen
-        AddTest('Sequential Preconditioning', 'Seq Pass 1', '100', '131072', '1',
-                '256', False, '', 'Sequential Preconditioning Pass 1',
-                lambda o: {SequentialConditioning()} )
-        AddTest('Random Preconditioning', 'Preparation', '', '', '', '', '', '',
-                '', lambda o: {} ) # Only for display on-screen
-        AddTest('Random Preconditioning', 'Rand Pass 1', '100', '8192', '16',
-                '256', False, '', 'Random Preconditioning',
-                lambda o: {RandomConditioning()} )
-        RunAllTests()
+        cmdline = [fio, "--name=SeqCond", "--eta=always", "--readwrite=write", "--bs=128k", 
+                   "--ioengine=libaio", "--iodepth=64", "--direct=1", 
+                   "--filename=" + physDrive, "--size=" + str(testcapacity) + "G",
+                   "--thread"]
+        cmd = " ".join(cmdline)
+        os.system(cmd)
+
+        if (sys.stdout.isatty()):
+            print "Estimating test time from random pre-conditioning (1% of disk capacity)"
+            print "\r",
+        
+        cmdline = [fio, "--name=RandCond", "--readwrite=randwrite", "--bs=8k",
+               "--invalidate=1", "--end_fsync=0", "--group_reporting",
+               "--direct=1", "--filename=" + str(physDrive),
+               "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
+               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread"]
+        cmd = " ".join(cmdline)
+        os.system(cmd)
+
         sys.exit(0)
 
 
