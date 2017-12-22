@@ -1,3 +1,22 @@
+Quick setup and run steps:
+1. Download/Install required tools
+    yum install wget unzip
+    wget https://github.com/mrasquinha/ezfio/archive/master.zip
+    wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+
+    unzip master.zip
+    yum install epel-release-latest-7.noarch.rpm
+    yum install fio
+    yum install sdparm
+
+2. Run test inside a screen or tmux session
+    nohup ./ezfio.py -d <device> --yes &
+The device needs to be mounted. Usally /dev/xxx
+Make sure you do not need any data from the disk.
+
+3. For an estimate on runtime 
+    ./ezfio.py -d <device> -e --yes
+-----------------------------------------------------------------------
 ezFIO V1.0 
 (C) Copyright 2015 HGST
 earle.philhower.iii@hgst.com
