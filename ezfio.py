@@ -60,6 +60,19 @@ def Run(cmd):
     code = proc.wait()
     return code, out, err
 
+def Run2(cmd):
+    """Run a cmd[], return the exit code, stdout, and stderr."""
+    cmdline = " ".join(cmd)
+    cmdline += " >fio_tests.log 2>fio_tests.err "
+    os.system("rm -f output.json") #clean out any old results
+    code = os.system(cmdline)
+    if os.path.exists("output.json"):
+        out = open( "output.json", 'r' ).read()
+    else:
+        out = open( "fio_tests.log", 'r' ).read()
+    err = open( "fio_tests.err", 'r' ).read()
+    return code, out, err
+
 def CheckAdmin():
     """Check that we have root privileges for disk access, abort if not."""
     if ( os.geteuid() != 0 ):
@@ -375,11 +388,11 @@ def SequentialConditioning():
     cmdline = [fio, "--name=SeqCond", "--readwrite=write", "--bs=128k", 
                "--ioengine=libaio", "--iodepth=64", "--direct=1", 
                "--filename=" + physDrive, "--size=" + str(testcapacity) + "G",
-               "--thread"]
+               "--thread", "--eta=always"]
     AppendFile("[TEST-FIO_CMD]", testfile)
     AppendFile(" ".join(cmdline), testfile)
     starttime = datetime.datetime.now()
-    code, out, err = Run(cmdline)
+    code, out, err = Run2(cmdline)
     delta = datetime.datetime.now() - starttime
     dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
             (delta.seconds%3600)/60, delta.seconds % 60)
@@ -401,11 +414,11 @@ def RandomConditioning():
                "--invalidate=1", "--end_fsync=0", "--group_reporting",
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
-               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread"]
+               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread", "--eta=always"]
     AppendFile("[TEST-FIO_CMD]", testfile)
     AppendFile(" ".join(cmdline), testfile)
     starttime = datetime.datetime.now()
-    code, out, err = Run(cmdline)
+    code, out, err = Run2(cmdline)
     delta = datetime.datetime.now() - starttime
     dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
             (delta.seconds%3600)/60, delta.seconds % 60)
@@ -471,8 +484,8 @@ def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
                "--size=" + str(testcapacity) + "G", "--time_based",
                "--runtime=" + str(runtime), "--ioengine=libaio",
                "--numjobs=" + str(threads), "--iodepth=" + str(iodepth),
-               "--norandommap", "--randrepeat=0", "--thread",
-               "--output-format=" + str(fioOutputFormat), "--exitall"]
+               "--norandommap", "--randrepeat=0", "--thread", "--eta=always",
+               "--output-format=" + str(fioOutputFormat), "--exitall", "--output=output.json"]
     
     AppendFile(" ".join(cmdline), testfile)
 
@@ -492,7 +505,7 @@ def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
         out += "3;" + "0;" * 100 + "\n"  # Bogus 0-filled resulte line
         err = ""
     else:
-        code, out, err = Run(cmdline)
+        code, out, err = Run2(cmdline)
     AppendFile("[STDOUT]", testfile)
     AppendFile(out, testfile)
     AppendFile("[STDERR]", testfile)
@@ -622,7 +635,7 @@ def DefineTests():
                "--invalidate=1", "--end_fsync=0", "--group_reporting",
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
-               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread"]
+               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread", "--eta=always"]
         cmd = " ".join(cmdline)
         os.system(cmd)
 
