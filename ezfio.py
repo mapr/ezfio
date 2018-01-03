@@ -788,7 +788,7 @@ def RunAllTests():
     for o in oc:
         if o['desc'] == "":
             # This is a header-printing job, don't thread out
-            print "\n" + fmtstr.format("---"+o['name']+"---", "", "", "")
+            print "\n" + fmtstr.format("---"+o['name']+"---", "", "", "", "", "")
             sys.stdout.flush()
             o['cmdline'](o)
         else:
