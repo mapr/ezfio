@@ -388,14 +388,10 @@ def SequentialConditioning():
     cmdline = [fio, "--name=SeqCond", "--readwrite=write", "--bs=128k", 
                "--ioengine=libaio", "--iodepth=64", "--direct=1", 
                "--filename=" + physDrive, "--size=" + str(testcapacity) + "G",
-               "--thread", "--eta=always"]
+               "--thread", "--output=output.json", "--eta=always"]
     AppendFile("[TEST-FIO_CMD]", testfile)
     AppendFile(" ".join(cmdline), testfile)
-    starttime = datetime.datetime.now()
     code, out, err = Run2(cmdline)
-    delta = datetime.datetime.now() - starttime
-    dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
-            (delta.seconds%3600)/60, delta.seconds % 60)
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
@@ -403,7 +399,7 @@ def SequentialConditioning():
         AppendFile(out, testfile)
         AppendFile("[STDERR]", testfile)
         AppendFile(err, testfile)
-        return "DONE", "DONE", dstr
+        return "DONE", "DONE", "DONE"
 
 def RandomConditioning():
     """Randomly write entire device for the full capacity"""
@@ -414,14 +410,11 @@ def RandomConditioning():
                "--invalidate=1", "--end_fsync=0", "--group_reporting",
                "--direct=1", "--filename=" + str(physDrive),
                "--size=" + str(testcapacity) + "G", "--ioengine=libaio",
-               "--iodepth=256", "--norandommap", "--randrepeat=0", "--thread", "--eta=always"]
+               "--iodepth=256", "--norandommap", "--randrepeat=0", 
+               "--thread", "--eta=always", "--output=output.json"]
     AppendFile("[TEST-FIO_CMD]", testfile)
     AppendFile(" ".join(cmdline), testfile)
-    starttime = datetime.datetime.now()
     code, out, err = Run2(cmdline)
-    delta = datetime.datetime.now() - starttime
-    dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
-            (delta.seconds%3600)/60, delta.seconds % 60)
     if code != 0:
         raise FIOError(" ".join(cmdline), code , err, out)
     else:
@@ -429,7 +422,7 @@ def RandomConditioning():
         AppendFile(out, testfile)
         AppendFile("[STDERR]", testfile)
         AppendFile(err, testfile)
-        return "DONE", "DONE", dstr
+        return "DONE", "DONE", "DONE" 
 
 def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
     """Runs the specified test, generates output CSV lines."""
@@ -485,7 +478,8 @@ def RunTest(iops_log, seqrand, wmix, bs, threads, iodepth, runtime):
                "--runtime=" + str(runtime), "--ioengine=libaio",
                "--numjobs=" + str(threads), "--iodepth=" + str(iodepth),
                "--norandommap", "--randrepeat=0", "--thread", "--eta=always",
-               "--output-format=" + str(fioOutputFormat), "--exitall", "--output=output.json"]
+               "--output-format=" + str(fioOutputFormat), "--exitall", 
+               "--output=output.json"]
     
     AppendFile(" ".join(cmdline), testfile)
 
@@ -749,7 +743,7 @@ def RunAllTests():
     for o in oc:
         maxlen = max(maxlen, len(o['desc']))
     descfmt = "{0:" + str(maxlen) + "}"
-    resfmt = "{1: >8} {2: >9} {3: >8}"
+    resfmt = "{1: >8} {2: >9} {3: >8} {4: >8} {5: >8}"
     fmtstr = descfmt + " " + resfmt
 
     def JobWrapper(**kwargs):
@@ -759,6 +753,8 @@ def RunAllTests():
         ret_iops = "ERROR"
         ret_mbps = "ERROR"
         ret_lat = "ERROR"
+        start_time = "ERROR"
+        end_time = "ERROR"
         try:
             val = o['cmdline'](o)
             ret_iops = list(val)[0][0]
@@ -772,7 +768,7 @@ def RunAllTests():
             print "\nUnexpected error while running FIO job."
             raise
         
-    print "*" * len(fmtstr.format("", "", "", ""))
+    print "*" * len(fmtstr.format("", "", "", "", "", ""))
     print "ezFio test parameters:\n"
 
     fmtinfo="{0: >20}: {1}"
@@ -787,8 +783,8 @@ def RunAllTests():
     print fmtinfo.format("FIO Version", str(fioVerString))
 
     print "\n"
-    print fmtstr.format("Test Description", "BW(MB/s)", "IOPS", "Lat(us)")
-    print fmtstr.format("-"*maxlen, "-"*8, "-"*9, "-"*8)
+    print fmtstr.format("Test Description", "BW(MB/s)", "IOPS", "Lat(us)", "StartTime", "EndTime")
+    print fmtstr.format("-"*maxlen, "-"*8, "-"*9, "-"*8,"-"*8,"-"*8)
     for o in oc:
         if o['desc'] == "":
             # This is a header-printing job, don't thread out
@@ -798,27 +794,27 @@ def RunAllTests():
         else:
             # This is a real test job, run it in a thread
             if (sys.stdout.isatty()):
-                print fmtstr.format(o['desc'], "Runtime", "00:00:00", "..."),
+                print fmtstr.format(o['desc'], "Runtime", "00:00:00", "", "", "..."),
                 print "\r",
             else:
                 print descfmt.format(o['desc']),
             sys.stdout.flush()
-            starttime = datetime.datetime.now()
+            start_time = datetime.datetime.now()
             job = threading.Thread(target=JobWrapper, kwargs=(o))
             job.start()
             while job.isAlive():
                 now = datetime.datetime.now()
-                delta = now - starttime
+                delta = now - start_time
                 dstr = "{0:02}:{1:02}:{2:02}".format(delta.seconds / 3600,
                                                      (delta.seconds%3600)/60,
                                                      delta.seconds % 60)
                 if (sys.stdout.isatty()):
                     # Blink runtime to make it obvious stuff is happening
-                    if (delta.seconds % 2) != 0:
-                        print fmtstr.format(o['desc'], "Runtime", dstr, "..."),
+                    if (delta.seconds % 10) != 0:
+                        print fmtstr.format(o['desc'], "Runtime", dstr, "", "", "..."),
                         print "\r",
                     else:
-                        print fmtstr.format(o['desc'], "", dstr, "") + "\r",
+                        print fmtstr.format(o['desc'], "", dstr, "", "" ,"") + "\r",
                 sys.stdout.flush()
                 time.sleep(1)
             job.join()
@@ -828,10 +824,11 @@ def RunAllTests():
                 ret_mbps = "{:0,.2f}".format(float(ret_mbps))
             except:
                 pass
+            end_time = datetime.datetime.now()
             if (sys.stdout.isatty()):
-                print fmtstr.format(o['desc'], ret_mbps, ret_iops, ret_lat)
+                print fmtstr.format(o['desc'], ret_mbps, ret_iops, ret_lat, start_time.strftime("%H:%M:%S"), end_time.strftime("%H:%M:%S"))
             else:
-                print " " + resfmt.format(o['desc'], ret_mbps, ret_iops, ret_lat)
+                print " " + resfmt.format(o['desc'], ret_mbps, ret_iops, ret_lat, start_time.strftime("%H:%M:%S"), end_time.strftime("%H:%M:%S"))
             sys.stdout.flush()
             # On any error abort the test, all future results could be invalid
             if ret_mbps == "ERROR":
