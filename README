@@ -51,7 +51,9 @@ sources available at https://github.com/axboe/fio or precompiled for
 Windows at http://www.bluestop.org/fio/
 
 -----------------------------------------------------------------------
-Mitchelle.
+
+MapR specific workload pattern evaluation for SSDs
+
 Tests have been trimmed to a subset of tuning parameters based on MapR
 workloads. Please use the help option for more details on how to run the
 script
